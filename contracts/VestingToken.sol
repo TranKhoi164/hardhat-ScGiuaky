@@ -11,8 +11,10 @@ contract VestingToken is ERC20, Ownable {
         uint256 start;
         uint256 cliff;
         uint256 duration;
+        bool paused;
         bool revoked;
     }
+    // address private owner;
 
     mapping(address => VestingSchedule) public vestingSchedules;
     mapping(address => bool) public isVesting;
@@ -21,9 +23,12 @@ contract VestingToken is ERC20, Ownable {
 
     event TokensReleased(address beneficiary, uint256 amount);
     event VestingRevoked(address beneficiary);
+    event PauseVesting(address beneficiary);
+    event ResumeVesting(address beneficiary);
 
-    constructor() ERC20("VestingToken", "VEST") Ownable(address(this)) {
+    constructor() ERC20("VestingToken", "VEST") Ownable(msg.sender) {
         _mint(msg.sender, 1000000 * 1e18);
+        // owner = msg.sender;
     }
 
     function setVesting(
@@ -43,19 +48,22 @@ contract VestingToken is ERC20, Ownable {
             start: start,
             cliff: start + cliff,
             duration: duration,
+            paused: false,
             revoked: false
         });
         isVesting[beneficiary] = true;
+        // msg.sender is owner
         _transfer(msg.sender, address(this), amount); // Lock tokens in the contract instead of sending to beneficiary
     }
 
     function release() external {
         VestingSchedule storage schedule = vestingSchedules[msg.sender];
         require(block.timestamp >= schedule.cliff, "Cliff period not ended");
+        require(!schedule.paused, "Vesting paused");
         require(!schedule.revoked, "Vesting revoked");
 
         uint256 vested = _vestedAmount(msg.sender);
-        uint256 unreleased = vested - schedule.released; // total tokens user can still calm
+        uint256 unreleased = vested - schedule.released; // total tokens user can still claim
         require(unreleased > 0, "No tokens to release");
 
         schedule.released += unreleased;
@@ -74,11 +82,29 @@ contract VestingToken is ERC20, Ownable {
         }
     }
 
-    function revoke(address beneficiary) external onlyOwner {
+    function pauseVesting(address beneficiary) external onlyOwner {
         VestingSchedule storage schedule = vestingSchedules[beneficiary];
-        require(!schedule.revoked, "Already revoked");
-        schedule.revoked = true;
-        emit VestingRevoked(beneficiary);
+        require(!schedule.paused, "Already paused");
+        schedule.paused = true;
+        emit PauseVesting(beneficiary);
+    }
+
+     function resumeVesting(address beneficiary) external onlyOwner {
+        VestingSchedule storage schedule = vestingSchedules[beneficiary];
+        require(schedule.paused, "Vesting is not paused");
+        schedule.paused = false;
+        emit ResumeVesting(beneficiary);
+    }
+
+    function revoke(address beneficiary) external onlyOwner {
+      VestingSchedule storage schedule = vestingSchedules[beneficiary];
+      require(!schedule.revoked, 'Already revoked');
+      schedule.revoked = true;
+
+      uint256 unreleasedTokens = schedule.totalAmount - schedule.released;
+      _transfer(address(this), owner(), unreleasedTokens);
+
+      emit VestingRevoked(beneficiary);
     }
 
     function burn(uint256 amount) external {
@@ -89,8 +115,8 @@ contract VestingToken is ERC20, Ownable {
         if (isVesting[msg.sender]) {
             VestingSchedule storage schedule = vestingSchedules[msg.sender];
             require(block.timestamp >= schedule.cliff, "Cannot transfer during cliff period");
-            uint256 unlocked = _vestedAmount(msg.sender) - schedule.released;
-            require(amount <= unlocked, "Cannot transfer locked tokens");
+            require(!schedule.paused, "Vesting paused");
+            require(amount <= schedule.released, "Cannot transfer unreleased/locked tokens");
         }
         return super.transfer(recipient, amount);
     }
@@ -98,6 +124,6 @@ contract VestingToken is ERC20, Ownable {
     function getVestingDetails(address beneficiary) external view returns (uint256 granted, uint256 locked, uint256 unlocked) {
         VestingSchedule memory schedule = vestingSchedules[beneficiary];
         uint256 vested = _vestedAmount(beneficiary);
-        return (schedule.totalAmount, schedule.totalAmount - vested, vested - schedule.released);
+        return (schedule.totalAmount, schedule.totalAmount - vested, schedule.released);
     }
 }
