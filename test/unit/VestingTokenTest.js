@@ -340,8 +340,8 @@ describe("VestingToken", function () {
 		expect(await vestingToken.balanceOf(owner.address)).to.equal(totalSupply);
 	});
 
-  it ('test getVestingSchedule', async function() {
-    const amount = (totalSupply * 40n) / 100n;
+	it("test getVestingSchedule", async function () {
+		const amount = (totalSupply * 40n) / 100n;
 		const latestBlock = await ethers.provider.getBlock("latest");
 		const start = latestBlock
 			? latestBlock.timestamp
@@ -357,14 +357,20 @@ describe("VestingToken", function () {
 			duration
 		);
 
-    const vestingSchedule = await vestingToken.getVestingSchedule(investor.address);
+		const vestingSchedule = await vestingToken.getVestingSchedule(
+			investor.address
+		);
 
-    expect(vestingSchedule.totalAmount).to.equal(amount);
-    expect(vestingSchedule.start).to.equal(start);
-    expect(vestingSchedule.cliff).to.equal(start+cliff);
-    expect(vestingSchedule.duration).to.equal(duration);
-    expect(vestingSchedule.paused).to.equal(false);
-    expect(vestingSchedule.revoked).to.equal(false);
+		expect(vestingSchedule.totalAmount).to.equal(amount);
+		expect(vestingSchedule.start).to.equal(start);
+		expect(vestingSchedule.cliff).to.equal(start + cliff);
+		expect(vestingSchedule.duration).to.equal(duration);
+		expect(vestingSchedule.paused).to.equal(false);
+		expect(vestingSchedule.revoked).to.equal(false);
+	});
+
+  it('test getVestingSchedule reverted if beneficiary is non-existent', async function() {
+    await expect(vestingToken.getVestingSchedule(investor.address)).to.be.revertedWith('No vesting schedule found')
   })
 
 	it("test burn tokens correctly", async function () {
@@ -377,17 +383,14 @@ describe("VestingToken", function () {
 	});
 });
 
-
-
-
 describe("VestingToken - changeBeneficiary", function () {
 	let VestingToken, vestingToken, owner, oldBeneficiary, newBeneficiary;
 	const totalSupply = ethers.parseEther("1000000");
 
-  let amount 
-  let start 
-  let cliff 
-  let duration 
+	let amount;
+	let start;
+	let cliff;
+	let duration;
 
 	beforeEach(async function () {
 		[owner, oldBeneficiary, newBeneficiary] = await ethers.getSigners();
@@ -397,7 +400,7 @@ describe("VestingToken - changeBeneficiary", function () {
 		await vestingToken.waitForDeployment();
 
 		// Set vesting schedule for old beneficiary
-		amount = ethers.parseEther('1000'); // 1000 tokens
+		amount = ethers.parseEther("1000"); // 1000 tokens
 		start = (await ethers.provider.getBlock("latest")).timestamp;
 		cliff = 60 * 60 * 24 * 30; // 30 days
 		duration = 60 * 60 * 24 * 365; // 1 year
@@ -461,18 +464,20 @@ describe("VestingToken - changeBeneficiary", function () {
 			.withArgs(oldBeneficiary.address, newBeneficiary.address);
 	});
 
-	it("should allow new beneficiary to release after changeBeneficiary", async function () {
+	it("test allow new beneficiary to release after changeBeneficiary", async function () {
 		await ethers.provider.send("evm_increaseTime", [cliff]);
 
 		// Old beneficiary releases vested tokens
 		await vestingToken.connect(oldBeneficiary).release();
-	
+
 		// Change beneficiary
 		await vestingToken
 			.connect(owner)
 			.changeBeneficiary(oldBeneficiary.address, newBeneficiary.address);
 
-		await	vestingToken.connect(newBeneficiary).release()
-    expect(await vestingToken.balanceOf(newBeneficiary.address)).not.to.equal(0);
-  });
+		await vestingToken.connect(newBeneficiary).release();
+		expect(await vestingToken.balanceOf(newBeneficiary.address)).not.to.equal(
+			0
+		);
+	});
 });
