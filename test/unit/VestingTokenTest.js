@@ -369,9 +369,11 @@ describe("VestingToken", function () {
 		expect(vestingSchedule.revoked).to.equal(false);
 	});
 
-  it('test getVestingSchedule reverted if beneficiary is non-existent', async function() {
-    await expect(vestingToken.getVestingSchedule(investor.address)).to.be.revertedWith('No vesting schedule found')
-  })
+	it("test getVestingSchedule reverted if beneficiary is non-existent", async function () {
+		await expect(
+			vestingToken.getVestingSchedule(investor.address)
+		).to.be.revertedWith("No vesting schedule found");
+	});
 
 	it("test burn tokens correctly", async function () {
 		const burnAmount = ethers.parseEther("50");

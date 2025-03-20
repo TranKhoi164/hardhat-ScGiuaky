@@ -12,8 +12,5 @@ module.exports = {
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
-  sourcify: {
-    enabled: true
-  },
   solidity: "0.8.28",
 };
